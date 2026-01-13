@@ -33,9 +33,6 @@ runs:
     - name: Free disk space
       shell: bash
       run: |
-        declare -A times_mapping
-        declare -A saved_mapping
-
         # ======
         # PLATFORM DETECTION & PATH SETUP
         # ======
@@ -116,53 +113,6 @@ runs:
           echo "${output}"
         }
 
-        # macro to compute available space
-        # REF: https://unix.stackexchange.com/a/42049/60849
-        # REF: https://stackoverflow.com/a/450821/408734
-        getAvailableSpace() {
-          if [[ "$OS_TYPE" == "macOS" ]]; then
-            # macOS uses different df output format
-            echo $(df -k ${1:-/} | awk 'NR==2 {print $4}')
-          elif [[ "$OS_TYPE" == "Windows" ]]; then
-            # Windows Git Bash df
-            echo $(df -k ${1:-/c} | awk 'NR==2 {print $4}')
-          else
-            # Linux
-            echo $(df -a ${1:-/} | awk 'NR > 1 {avail+=$4} END {print avail}')
-          fi
-        }
-
-        # macro to make Kb human readable (assume the input is Kb)
-        # REF: https://unix.stackexchange.com/a/44087/60849
-        formatByteCount() {
-          bytes=$1
-          if [ "$bytes" -lt "0" ]; then
-            kilobytes=$(awk "BEGIN {printf \"%.2f\",  $1 * -1000}")
-            sign_symbol="-"
-          else
-            kilobytes=$(awk "BEGIN {printf \"%.2f\",  $1 * 1000}")
-            sign_symbol="+"
-          fi
-          echo ${sign_symbol}$(numfmt --to=iec-i --suffix=B --padding=7 ${kilobytes});
-        }
-
-        # macro to output saved space
-        printSavedSpace() {
-          saved=${1}
-          title=${2}
-          time=${3}
-
-          printSeparationLine '*' 80
-          epsilon=0.001 # avoid divide by zero failures
-          # $saved in bytes, so convert to GB with  division by 1000000.0
-          RATE=$(awk "BEGIN {printf \"%.2f\", ( $saved / 1000000.0 ) /($time + $epsilon)}")
-          gigabytes_saved=$(formatByteCount $saved)
-          gigabytes_saved=$(formatByteCount $saved)
-          echo "=> ${title}: Saved $gigabytes_saved: in ${time} seconds : rate = ${RATE} GB/sec"
-          printSeparationLine '*' 80
-          echo ""
-        }
-
         # macro to print output of df with caption
         printDF() {
           caption=${1:-}
@@ -188,11 +138,6 @@ runs:
         # SCRIPT
         # ======
 
-        # Display initial disk space stats
-        GLOBAL_START_TIME=$(date +%s)
-        AVAILABLE_INITIAL=$(getAvailableSpace)
-        AVAILABLE_ROOT_INITIAL=$(getAvailableSpace '/')
-
         if [[ ${{ inputs.removalmode }} == 'rmz' ]]; then
           setup_rmz
         fi
@@ -205,36 +150,16 @@ runs:
         # Option: Remove .NET runtime
 
         if [[ ${{ inputs.dotnet }} == 'true' ]]; then
-          STAGE_START_TIME=$(date +%s)
-          BEFORE=$(getAvailableSpace)
-
+          echo "Removing .NET runtime..."
           fast_rmdir "$DOTNET_PATH" || true
-
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          STAGE_STOP_TIME=$(date +%s)
-          STAGE_ELAPSE_TIME=$((STAGE_STOP_TIME - STAGE_START_TIME))
-          times_mapping["dotnet"]="${STAGE_ELAPSE_TIME}"
-          saved_mapping["dotnet"]="$(formatByteCount $SAVED)"
-          printSavedSpace $SAVED ".NET runtime" ${STAGE_ELAPSE_TIME}
         fi
 
         # Option: Remove Haskell runtime
 
         if [[ ${{ inputs.haskell }} == 'true' ]]; then
-          STAGE_START_TIME=$(date +%s)
-          BEFORE=$(getAvailableSpace)
-
+          echo "Removing Haskell runtime..."
           fast_rmdir "$HASKELL_PATH" || true
           fast_rmdir "$HASKELL_PATH2" || true
-
-          AFTER=$(getAvailableSpace)
-          SAVED=$((AFTER-BEFORE))
-          STAGE_STOP_TIME=$(date +%s)
-          STAGE_ELAPSE_TIME=$((STAGE_STOP_TIME - STAGE_START_TIME))
-          times_mapping["haskell"]="${STAGE_ELAPSE_TIME}"
-          saved_mapping["haskell"]="$(formatByteCount $SAVED)"
-          printSavedSpace $SAVED "Haskell runtime" ${STAGE_ELAPSE_TIME}
         fi
 
         # Option: Remove Swap storage
@@ -243,51 +168,16 @@ runs:
           if [[ "$OS_TYPE" == "Windows" ]]; then
             echo "Swap storage removal not applicable on Windows (using pagefile instead)"
           else
-            STAGE_START_TIME=$(date +%s)
-            BEFORE=$(getAvailableSpace)
-
+            echo "Removing swap storage..."
             if [[ "$OS_TYPE" == "Linux" ]]; then
               $USE_SUDO swapoff -a || true
             fi
             $USE_SUDO rm -f $SWAP_PATH || true
             free -h 2>/dev/null || true
-
-            AFTER=$(getAvailableSpace)
-            SAVED=$((AFTER-BEFORE))
-            STAGE_STOP_TIME=$(date +%s)
-            STAGE_ELAPSE_TIME=$((STAGE_STOP_TIME - STAGE_START_TIME))
-            times_mapping["swap-storage"]="${STAGE_ELAPSE_TIME}"
-            saved_mapping["swap-storage"]="$(formatByteCount $SAVED)"
-            printSavedSpace $SAVED "Swap storage" ${STAGE_ELAPSE_TIME}
           fi
         fi
 
 
 
-        # Output saved space statistic
-
-        AVAILABLE_END=$(getAvailableSpace)
-        AVAILABLE_ROOT_END=$(getAvailableSpace '/')
-        GLOBAL_STOP_TIME=$(date +%s)
-
         echo ""
         printDF "AFTER CLEAN-UP:"
-
-        echo ""
-        echo ""
-
-        printSavedSpace $((AVAILABLE_ROOT_END - AVAILABLE_ROOT_INITIAL)) "/dev/root:" $((GLOBAL_STOP_TIME - GLOBAL_START_TIME))
-        times_mapping["root"]="$((GLOBAL_STOP_TIME - GLOBAL_START_TIME))"
-        saved_mapping["root"]="$(formatByteCount $((AVAILABLE_ROOT_END - AVAILABLE_ROOT_INITIAL)) )"
-        printSavedSpace $((AVAILABLE_END - AVAILABLE_INITIAL)) "Overall:" $((GLOBAL_STOP_TIME - GLOBAL_START_TIME))
-        times_mapping["overall"]="$((GLOBAL_STOP_TIME - GLOBAL_START_TIME))"
-        saved_mapping["overall"]="$(formatByteCount $((AVAILABLE_END - AVAILABLE_INITIAL)) )"
-
-        # Iterate over keys
-        echo "TIME_REPORT: == ${{ runner.os }} / ${{ inputs.removalmode }} ========================================"
-        printf "TIME_REPORT: %15s | %-10s seconds | %-12s |\n" "subsection" "time" "size"
-        echo "TIME_REPORT: ============================================================="
-        for subsection in "${!times_mapping[@]}"; do
-           printf "TIME_REPORT: %15s | %-10s seconds | %-12s |\n" "${subsection}" "${times_mapping[$subsection]}" "${saved_mapping[$subsection]}"
-        done
-        echo "TIME_REPORT: == ${{ runner.os }} / ${{ inputs.removalmode }} ========================================"
