@@ -1,0 +1,40 @@
+name: Test Removal free-disk-space action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  free-space:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        mode: [rm, rmz]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show disk BEFORE (${{ matrix.mode }})
+        run: df -h /
+
+      # If your action is in the repo root (action.yml at top level):
+      - name: Run free-disk-space (mode=${{ matrix.mode }})
+        uses: ./
+        with:
+          # Modes allowed include [ rmz, find, rsync, rm]
+          removalmode: ${{ matrix.mode }}
+          dotnet: "true"
+          haskell: "true"
+          swap-storage: "true"
+
+      - name: Show disk AFTER (${{ matrix.mode }})
+        run: df -h /
