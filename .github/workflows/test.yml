@@ -33,5 +33,5 @@ jobs:
           haskell: "true"
           swap-storage: "true"
 
-      - name: Show disk AFTERx.mode }})
+      - name: Show disk AFTER
         run: df -h /
