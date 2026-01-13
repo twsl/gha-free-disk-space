@@ -42,14 +42,15 @@ runs:
           USE_SUDO="sudo"
         elif [[ "$OS_TYPE" == "macOS" ]]; then
           DOTNET_PATH="/usr/local/share/dotnet"
+          # Note: Haskell is NOT installed by default on macOS GitHub runners
           HASKELL_PATH="/usr/local/opt/ghc"
           HASKELL_PATH2="$HOME/.ghcup"
           SWAP_PATH="/private/var/vm/swapfile*"
           USE_SUDO="sudo"
         elif [[ "$OS_TYPE" == "Windows" ]]; then
           DOTNET_PATH="/c/Program Files/dotnet"
-          HASKELL_PATH="/c/ProgramData/chocolatey/lib/ghc"
-          HASKELL_PATH2="$HOME/AppData/Roaming/ghcup"
+          HASKELL_PATH="/c/ghcup/ghc"
+          HASKELL_PATH2="/c/ghcup"
           SWAP_PATH=""  # Not applicable on Windows
           USE_SUDO=""  # No sudo on Windows
         fi
