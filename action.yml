@@ -1,4 +1,4 @@
-name: "Free Disk Space (CI Action)"
+name: "Github Actions Free Disk Space"
 # This is a simplified version of free-disk-space (https://github.com/BRAINSia/free-disk-space).
 description: "A configurable GitHub Action to free up disk space on GitHub Actions runners."
 
