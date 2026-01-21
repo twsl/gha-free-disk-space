@@ -1,6 +1,6 @@
 name: "Github Actions Free Disk Space"
 # This is a simplified version of free-disk-space (https://github.com/BRAINSia/free-disk-space).
-description: "A configurable GitHub Action to free up disk space on GitHub Actions runners."
+description: "A fast, configurable GitHub Action to free up disk space on GitHub Actions runners."
 
 # See: https://docs.github.com/en/actions/creating-actions/metadata-syntax-for-github-actions#branding
 branding:
